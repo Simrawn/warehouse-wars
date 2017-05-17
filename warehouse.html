@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+        <head>
+		<meta charset="utf-8">
+                <script src="jquery-3.1.1.min.js"></script>
+		        <script language="javascript" src="whgame.js"></script>
+                <script>
+			var socket;
+			var condition;
+			//window.addEventListener("keypress",decode_keypressed,false);
+
+			
+			var username;
+			function log(){
+
+				$("#registerform").hide();
+				if(username == "" || password == ""){
+                	alert("Please enter all details.");
+                	$("#LoginDIV").show();
+                	//$("#highscoresDIV").show();
+                	}
+				
+                else{
+					console.log("Entered login");
+					username = $("#username").val();
+					var password = $("#password").val();
+					
+					var request = $.ajax({
+					  url: "/login",
+					  method: "POST",
+					  data: JSON.stringify({username: username, password: password}),
+					  contentType: "application/json; charset=UTF-8",
+					});
+				    
+					console.log("Before done");
+				    request.done(function( msg,status,xhr ) {
+				    	console.log(xhr);
+	      				if (xhr.status == 200){
+	      			     console.log(("#stage").innerHTML);
+	      				 condition = "login";
+	 					 //main_email = msg["login"];
+	 					 send({"purpose":"logged in","info_":username}); // sends a message to the server that someone is interested in playing
+	 					 
+
+
+	 					 console.log("Successfully logged in.");
+					  	 $("#LoginDIV").hide();
+					  	 $("#highscoresDIV").hide();
+					  	 $("#LegendandControls").show();
+					     $("#stage").show();
+
+					  	 //startGame();
+					  }
+					  
+					});
+					 
+					request.fail(function( msg, status,xhr ) {
+					  if (msg.status == 400){
+					  	alert("account does not exist");
+					  }
+					  if (msg.status == 401){
+					  	console.log("failed!");
+					  	alert("wrong password");
+					  }
+
+					 
+					});
+			    }
+		    }
+
+		    function register_(){
+		    		$("#highscoresDIV").hide();
+
+                 	$("#LoginDIV").hide();
+                 	$("#registerform").show();
+			}
+
+		    function addUserToDB(){
+
+		    	//DONT LET THEM INSERT WITH A USERNAME THAT ALREADY EXISTS
+		    		var username = $("#registerusername").val();
+                	var password = $("#registerpassword").val();
+                	var email = $("#email").val();
+                	var request = $.ajax({
+                		url: "/register",
+                		method : "POST",
+                		data: JSON.stringify({ username : username, password : password, email: email}),
+				        contentType: "application/json; charset=UTF-8",
+				   });
+
+                	request.fail(function( msg,status,xhr ) {
+				    	if (msg.status == 403){
+				           alert( "Request failed: " + "Username already exists. Please choose another one." );
+				           $("#registerform").show();
+				        }
+				     });
+
+                	
+		    }
+
+		    function verify_username(username){
+                	if(username.length<4 || username.length>10){
+                		return false;
+                	}
+                	//use regex there can be 0 or 1 number
+                	return true;
+                }
+                function verify_password(password){
+                	if(password.length<4 || password.length>20){
+                		return false;
+                		//use regex to confirm that the password is okay -- requirement -length 4 to 7, atmost one number and all letters
+                	}
+                	else {
+                		var result = /\w{4,20}/.exec(password);
+                		//if (password)
+                	}
+                	return true;
+                }
+                function verify_email(email){
+                	var result = /\w{2,}\.?\w{2,}@\w{2,}\.com|ca|edu|uk/.exec(email);
+                	if (result==email){
+                	    return true;
+                	}
+                	else{
+                		return false;
+                	}
+                }
+
+			function send(information){
+				console.log("Entered send function.");
+				//var my_message = name + " is here to battle.";
+				var purpose = information["purpose"];
+				console.log("here is the purpose:");
+				console.log(purpose);
+				var message = information["info_"];
+
+
+
+				switch(purpose){
+				    case "logged in":
+				        socket.send(JSON.stringify(information));
+				        break;
+				    case "move on click":
+				    	information["username"] = username;
+				    	console.log("information is:");
+				    	console.log(JSON.stringify(information));
+				    	socket.send(JSON.stringify(information));
+				    	break;
+
+				  
+				}
+				//socket.send(stage.Gameoutline);
+				//$("#playersplaying").val("");
+			}
+
+			$(function(){
+				var set_stage = null;
+				setupGame();
+				socket = new WebSocket("ws://localhost:10391");
+				console.log("socket connected successfully");
+				socket.onclose = function (event) {
+					alert("closed code:" + event.code + " reason:" +event.reason + " wasClean:"+event.wasClean);
+				};
+
+				socket.onmessage = function (event){
+					//$("#stage").innerHTML =event.data;
+					//set_stage = event.data;
+					var purpose = JSON.parse(event.data).purpose;
+					var message = JSON.parse(event.data).info_;
+					switch(purpose){
+						case "add player":
+
+						    //console.log("Enterted add player");
+                            //console.log(JSON.stringify(message));
+						    stage.place_actors("player",message);
+						    break;
+
+						case "add monsters":
+							//console.log("Entered add monster");
+                            //console.log(JSON.stringify(message));
+							stage.place_actors("monster",message);
+							break;
+
+					    case "add boxes":
+							//console.log("Entered add boxes");
+                            //console.log(JSON.stringify(message));
+							stage.place_actors("box",message);
+							break;
+
+					    case "move monsters":
+							//console.log("Entered move monsters");
+                            //console.log(JSON.stringify(message));
+							stage.swap_actors("swap a monster",message);
+							break;
+
+						case "end game":
+							stage.remove_player("remove player",message);
+							break;
+
+						case "move player to blank":
+							stage.swap_actors("swap a player", message);
+							break;
+
+					}
+					
+		            //fill in the inner html with the current stage.
+
+				};
+
+				//highScoresTable();
+            	$("#LegendandControls").hide();
+				$("#stage").hide();
+				$("#registerform").hide();
+				$("#LoginDIV").show();
+				$("#highscoresDIV").show();
+				//$("#profilepage").hide();
+			});
+            
+            function setupGame(){
+	            stage=new Stage(20,20,"stage");
+	            stage.initialize();
+	            document.getElementById("nw").onclick = function() {send({"purpose":"move on click","info_":"nw"});};
+            document.getElementById("ne").onclick = function() {send({"purpose":"move on click","info_":"ne"});};
+            document.getElementById("n").onclick = function() {send({"purpose":"move on click","info_":"n"});};
+            document.getElementById("sw").onclick = function() {send({"purpose":"move on click","info_":"sw"});};
+            document.getElementById("se").onclick = function() {send({"purpose":"move on click","info_":"se"});};
+            document.getElementById("s").onclick = function() {send({"purpose":"move on click","info_":"s"});};
+            document.getElementById("e").onclick = function() {send({"purpose":"move on click","info_":"e"});};
+            document.getElementById("w").onclick = function() {send({"purpose":"move on click","info_":"w"});};
+            }
+
+            /*function decode_keypressed(e){
+				var x = e.key;
+			  	
+				if (x === "q"){
+					send({"purpose":""})
+					move_player("nw");
+					stage.place_actors("move_player","nw");
+				}
+				/*else if (x==="w"){
+                   move_player("n");
+				}
+				else if (x==="e"){
+                    move_player("ne");
+				}
+				else if (x==="a"){
+                   move_player("w");
+				}
+				else if (x==="d"){
+                   move_player("e");
+				}
+				else if (x==="z"){
+                   move_player("sw");
+				}
+				else if (x==="x"){
+                    move_player("s");
+				}
+				else if (x==="c"){
+                    move_player("se");
+				}*/
+				
+
+			//}
+
+			
+			
+
+		</script>
+		<style>
+			#stage{
+            	background-color: #FFFFFF;
+            }
+
+		</style>
+	</head>
+		<body bgcolor="#e0aa2f">
+		<center>
+			<h1>Warehouse Wars</h1>
+			<div id = "pics">
+			<img src="icons/cool.png" height="250" width="250"/>
+			<img src="icons/monster.png" height="210" width="210"/>
+		</div>
+
+			<table = "right">
+				<tr>
+					<td><div id="stage" style="color:#FFFFFF" align = "left" width="50%"> STAGE DIV ENTERED</div> </td> 
+					<td>
+						<center>
+
+							<div id="LegendandControls">
+							<h2>Legend</h2>
+							<table class="legend" font-size="15">
+								<tr><td> <img src="icons/blank.gif" id="blankImage" border="2"/> </td><td> Empty <br/> Square </td></tr>
+								<tr><td> <img src="icons/emblem-package-2-24.png" id="boxImage" border="2" /> </td><td> Box </td></tr>
+								<tr><td> <img src="icons/face-cool-24.png" height="24" width="24" id="playerImage" border="2"/> </td><td> Player </td></tr>
+								<tr><td> <img src="icons/face-devil-grin-24.png" id="monsterImage" border="2"/> </td><td> Monster </td></tr>
+								<tr><td> <img src="icons/wallred.png" height="24" width="24" id="wallImage" border="2"/> </td><td> Wall </td></tr>
+							</table>
+							<h2>Controls</h2>
+							<table class="controls">
+								<tr>
+									<td><img id = "nw" width = "50" height = "50" src="icons/north_west.svg"  /></td>
+									<td><img id = "n" width = "50" height = "50" src="icons/north.svg" /></td>
+									<td><img id = "ne" width = "50" height = "50" src="icons/north_east.svg"  /></td>
+								</tr>
+								<tr>
+									<td><img id = "w" width = "50" height = "50" src="icons/west.svg"  /></td>
+									<td>&nbsp;</td>
+									<td><img id = "e" width = "50" height = "50" src="icons/east.svg"  /></td>
+								</tr>
+								<tr>
+									<td><img id = "sw" width = "50" height = "50" src="icons/south_west.svg"  /></td>
+									<td><img id ="s" width = "50" height = "50" src="icons/south.svg" /></td>
+									<td><img id ="se" width = "50" height = "50" src="icons/south_east.svg"  /></td>
+
+								</tr>
+							</table>
+							<table class="profilebutton">
+								<tr> <td> <input type="button" id="profilebutton" value="Profile" </td> </tr>
+							</table>
+							<table class="pausebutton">
+								<tr> <td> <input type="button" id="pausebutton" value="Pause"  </td> </tr>
+							</table>
+
+							<table class="logoutbutton">
+								<tr> <td> <input type="button" id="logoutbutton" value="Logout"</td> </tr>
+							</table>
+							<table class="yourscore">
+								<h2> Your Current Score: </h2>
+								<tr><td> <div id="score">0</div> </td></tr>
+							</table>
+							<div id = "playersplaying">    </div>
+						</div>
+						<div id = "profilepage">
+						
+						</div>
+							<div id = "LoginDIV">
+							   <p> <label for="user">Username: </label><input type="text" id="username"></input> </p>
+							   <p> <label for="password">Password: </label><input type="password" id="password"></input> </p>
+							   <p> <input type="button" id="login" value="Login" onclick="log()"> </p><br><br>
+							   	<p> New here? <input type="button" id="register" value="Register" onclick="register_()"/> </p>
+
+                            </div>
+                            <div id = "highscoresDIV" font-size: "10px">
+
+                            	 <p>this will be filled using innerhtml from up above after retrieving highscores </p>
+                            </div>
+                            <div id = "registerform">
+                            	<p> Hi, please enter the details below to register yourself as a new player. </p>
+                            	
+                            	<p><label for="user">User</label> <input type="text" id="registerusername"></input> </p>
+							    <p> <label for="password">Password</label> <input type="password" id="registerpassword"></input> </p>
+							    <p> <label for="email">Email</label> <input type="email" id="email"></input> </p>
+							    <p> You can't change your username and email later on. Choose wisely.</p>
+							    <p> <input type="button" id="register" value="register" onclick="addUserToDB()"/>
+                            </div>
+                               </td>
+				</tr>
+			</table>
+		</center>
+	</body>
+</html>
+
+
+
+
+
+
+
